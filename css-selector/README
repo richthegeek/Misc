@@ -1,0 +1,1 @@
+A simple interface allowing a user to enter an URL and browse the DOM of that URL, creating the shortest possible unique CSS selector to the selected element
