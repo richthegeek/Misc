@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-GB" lang="en-GB">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>--</title>
+
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+<script type="text/javascript" src="raphael-min.js"></script>
+<script type="text/javascript">
+
+var menu = []
+
+menu[0] = {	action: none,
+		title: 'Terminal',
+		icon: 'icons/terminal.png' }
+menu[1] = {	action: none,
+		title: 'Pidgin',
+		icon: 'icons/pidgin.png' }
+menu[2] = {	action: goto_submenu,
+		title: 'System submenu',
+		icon: 'icons/gnome-unknown.png' }
+menu[3] = {	action: none,
+		title: 'Blender',
+		icon: 'icons/blender.png' }
+menu[4] = {	action: none,
+		title: 'Evolution',
+		icon: 'icons/evolution.png' }
+		
+var sub = []
+sub[0] =  {	action: back_to_menu,
+		title: "Back",
+		icon: 'icons/package-upgrade.png' }
+sub[1] =  {	action: none,
+		title: "Shutdown",
+		icon: 'icons/gnome-session-halt.png' }
+sub[2] =  {	action: none,
+		title: "Hibernate",
+		icon: 'icons/gnome-session-hibernate.png' }
+sub[3] =  {	action: none,
+		title: "Logout",
+		icon: 'icons/gnome-session-logout.png' }
+sub[4] =  {	action: none,
+		title: "Reboot",
+		icon: 'icons/gnome-session-reboot.png' }
+sub[5] =  {	action: none,
+		title: "Lock Screen",
+		icon: 'icons/revelation.png' }															
+					
+function none( e ) { alert( e.title ) }
+
+function goto_submenu()
+{
+	$("#gotosub").show()
+}
+
+function back_to_menu()
+{
+	$("#menu").show_circle()
+}
+
+$( function()
+{
+	var m = $("#menu").radial( menu, 200 )
+	
+	console.log( m )
+		
+	$("<div></div>").attr("id","gotosub").hide().appendTo( "body" ).radial( sub, 200 );
+})
+
+jQuery.fn.radial = function( menu, radius )
+{
+	//return this.each( function( i, parent )
+	//{
+		this.initialise = function()
+		{
+			// create a box with a random id
+			var id = "radial_" + Math.round( Math.random() * 1000 );
+		
+			// add various class level attrs		
+			this.dom = $( "<div></div>" ).attr( "id", id ).addClass( "radial-menu-outer" ).appendTo( "body" )
+			this.dom_el = this.dom[0]
+			this.width = (radius * 2) + 50
+			this.height = (radius * 2) + 50; //this.dom.height()
+		
+			this.dom.css( { "width" : this.width, "height" : this.height, "margin-left" : 0 - this.width*0.5, "marginTop" : 0 - this.height * 0.5 } )
+		
+			// init the raphael paper
+			this.paper = Raphael( this.dom_el, this.width, this.height )
+		
+			this.objects = this.paper.set()
+
+			var radib = radius + 10;
+			var radibn = radius - 10;
+		
+			// draw the base stuff - background, inner and outer circles, gloss
+			//background	= this.paper.rect( 0, 0, this.width, this.height ).attr( { "stroke-width" : "0px", fill: "#000", opacity: 0.8 } )
+			outer_circle	= this.paper.circle( this.width / 2, this.height / 2, radius ).attr( { stroke: "#222", "stroke-width": "20px", "fill" : "#555", "opacity" : 0.8 } )
+			inner_circle	= this.paper.circle( this.width / 2, this.height / 2, 50 ).attr( { stroke: "#888", "stroke-width" : "0.5px", "fill" : "#333", "opacity" : 0.6 } )
+			gloss		= this.paper.path( [ "M", ( this.width /2 ) - radib, this.height / 2, "a", radib, radib, 0, 0, 1, radib * 2, 0, "a", radib, ( radius * 0.25 ) + 10, 0, 0, 0, radib * -2, 0 ] ).attr( { "stroke-width": "0px", fill: "#fff", opacity: 0.05 } ).rotate( 5, this.width / 2, this.height / 2 )
+	
+			// close button
+			button		= this.paper.image( "icons/package-purge.png", this.width / 2 - 32, this.width / 2 - 32, 64, 64 ).attr( { opacity: 0.5 } )
+			
+			$(button.node).hover( function()
+			{
+				button.animate( { opacity: 1 }, 200 )
+				inner_circle.animate( { opacity: 1 } , 200 )
+			}, function()
+			{
+				button.animate( { opacity: 0.5 }, 200 )
+				inner_circle.animate( { opacity: 0.6 } , 200 )			
+			}).css( "cursor", "pointer" ).click( hide )
+	
+			// add them to the objects set - not the background though
+			//this.background = background
+			this.objects.push( outer_circle, inner_circle, gloss )
+	
+			// when the background is clicked, hide it
+			//background.node.onclick = hide
+			
+			// add the icons...
+			// work out some angles first
+			var start_a = 0;
+			var arc_ar = Math.min( Math.PI / 2, (Math.PI * 2) / menu.length )
+			var arc_ad = Math.min( 90, Math.round( 360 / menu.length ) )
+			for( var i = 0; i < menu.length; i++ )
+			{
+				var arc = this.paper.set();
+				
+				// add the arc itself
+				bg = this.paper.path( [	"M", ( this.width /2 ) - ( 50 * Math.sin( arc_ar / 2 ) ), ( this.height /2 ) - ( 50 * Math.cos( arc_ar / 2 ) ),
+							"L", ( this.width / 2 ) - ( radib * Math.sin( arc_ar / 2 ) ), ( this.height / 2 ) - ( radib * Math.cos( arc_ar / 2 ) ),
+							"a", radib, radib, 0, 0, 1, radib * 2 * Math.sin( arc_ar / 2 ), Math.sin( arc_ar / 2 ), 
+							"L", ( this.width /2 ) + ( 50 * Math.sin( arc_ar / 2 ) ), ( this.height /2 ) - ( 50 * Math.cos( arc_ar / 2 ) ),
+							"a", 50, 50, 0, 0, 0, - ( 100 * Math.sin( arc_ar / 2 ) ), 0,
+							"z"
+						] ).attr( { "stroke-width" : "0px", fill : "#fff", opacity: 0 } )
+
+				// border path
+				var bpath = [	"M", ( this.width /2 ) - ( 50 * Math.sin( arc_ar / 2 ) ), ( this.height /2 ) - ( 50 * Math.cos( arc_ar / 2 ) ),
+						"L", ( this.width / 2 ) - ( radibn * Math.sin( arc_ar / 2 ) ), ( this.height / 2 ) - ( radibn * Math.cos( arc_ar / 2 ) ) ]
+
+				// lte 3 menu items add another border
+				if( menu.length <= 3 && i == menu.length - 1 )
+				{
+						nbp = [ "M", ( this.width / 2 ) + ( radibn * Math.sin( arc_ar / 2 ) ), ( this.height / 2 ) - ( radibn * Math.cos( arc_ar / 2 ) ), "L", ( this.width /2 ) + ( 50 * Math.sin( arc_ar / 2 ) ), ( this.height /2 ) - ( 50 * Math.cos( arc_ar / 2 ) ) ]
+						for( var j = 0; j < nbp.length; j++ ) bpath[ bpath.length ] = nbp[j]
+ 				}
+
+				// draw the border
+				border = this.paper.path( bpath ).attr( { "stroke-dasharray" : "- ", "stroke" : "#999" } )
+				
+				// icon ( this.width - imgsz.width) * 0.5, (this.height - imgsz.height - (radius*0.5) - radius) * 0.5, 
+				imgsz = this.get_image_size( menu[i].icon )
+				icon = this.paper.image( menu[i].icon, 
+								( radius * 0.70 * Math.sin( arc_ar * i ) ) + ( this.width * 0.5 ) - ( imgsz.width * 0.5 ),
+								( radius * 0.70 * Math.cos( ( arc_ar * i ) + Math.PI ) ) + ( this.height * 0.5 ) - ( imgsz.height * 0.5 ),	
+								imgsz.width, imgsz.height )
+				
+				// text
+				tx = ( ( radib - 10 ) * Math.sin( arc_ar * i ) ) + ( this.width * 0.5 )
+				ty = ( ( radib - 10 ) * Math.cos( (arc_ar * (i)) + Math.PI ) ) + ( this.height * 0.5 )
+				text = this.paper.text( tx, ty, menu[i].title ).attr( { "font-family" : "Segoe UI", "font-size" : "12pt", "font-weight" : 700, fill : "#fff" } )
+				var r = arc_ad * i
+				if( r > 90 && r < 270 ) r -= 180
+				text.rotate( r )
+					
+				// push to arc set and rotate
+				arc.push( bg, border )
+				arc.rotate( arc_ad * i, Math.ceil(this.width / 2), Math.ceil(this.height / 2) )
+				
+				arc.push( text, icon )
+				this.objects.push( arc )
+				
+				bg.toFront()
+				
+				$(bg.node).data("ro",bg).data( "menu", menu[i] ).hover( function()
+				{
+					$(this).data("ro").animate( { opacity: 0.2 }, 200 )
+				}, function()
+				{
+					$(this).data("ro").animate( { opacity: 0 }, 200 )
+				}).click( function()
+				{
+					o.hide()
+					cb = $(this).data("menu").action
+					cb( $(this).data("menu") )
+				})
+			}
+		}
+	
+		var hide = function( e )
+		{
+			$(o.dom).fadeOut( 500 )
+		}
+		this.hide = hide
+		
+		var show = function( e )
+		{
+			console.log( this )
+			o.dom.css( { top: e.clientY, left: e.clientX } ).fadeIn( 500 )
+		}
+		
+		var show_circle = function( e )
+		{
+			$(".radial-loading").remove()
+			var f = function() { 
+				show(e) 
+				$(".radial-loading").remove()
+			}
+		
+			i = $( "<img>" ).attr( "src", "loading.gif" ).addClass("radial-loading").css( { position: "absolute", top: e.clientY, left: e.clientX } ).appendTo( "body" ).mouseout( function()
+			{
+				$(".radial-loading").remove()
+				clearTimeout( t )
+			})
+			
+			var t = setTimeout( f, 1200 )
+		}
+	
+		this.get_image_size = function( src )
+		{
+			return { width : 64, height : 64 }
+		}
+	
+		this.mdown = function()
+		{
+		
+
+		}
+		
+		o = this
+
+		$(this).mouseover( show_circle )
+		
+		this.initialise();
+		
+		$(this)[0] = this
+		
+		return this
+
+	//}) // end each
+} // end jquery.fn.radial
+
+</script>
+<style type="text/css">
+
+a#menu
+{
+	display :block;
+	margin: 400px 0px 0px 500px;
+	background: #aaf;
+	width: 100px;
+	text-align: center;
+}
+
+.radial-menu-outer
+{
+	left: -999px;
+	position: fixed;
+}
+
+</style>
+</head>
+<body>
+
+<a id="menu">menu</a>
+
+</body>
+</html>

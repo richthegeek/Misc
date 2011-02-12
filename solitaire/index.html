@@ -1,0 +1,712 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-GB" lang="en-GB">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>Solitaire</title>
+
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+<script type="text/javascript">
+var deck = []
+var suits = [ "hearts", "diams", "clubs", "spades" ]
+var cards = [ "A", 2, 3, 4, 5, 6, 7, 8, 9, 10, "J", "Q", "K" ]
+var moving = []
+var target = false
+
+var mi = 0;
+
+var poscache = {};
+
+$( function()
+{
+	// decks
+	$("#decks div").click( function()
+	{
+		$(this).parent().find(".active").removeClass("active")
+		$(this).addClass("active");
+		var img = "url("+$(this).attr("class").split(" ")[0]+".jpg)"
+		$(".card").css( "background-image", img )
+	})
+
+
+	// build card slots
+	for( var i = 0; i < 7; i++ )
+	{
+		$("<li id='tableau_"+i+"'><ul class='cardlist'></ul></li>").appendTo( "#tableau" );	
+		if( i >= 4 ) continue;	
+		$("<li id='foundation_"+suits[i]+"'><ul class='cardlist'></ul></li>").appendTo( "#foundation" );
+		if( i >= 2 ) continue;
+		$("<li id='reserve_"+i+"'><ul class='cardlist'></ul></li>").appendTo( "#reserve" );
+	}
+	
+	// and cache their positions!
+	for( var i = 0; i < 7; i++ )
+	{
+		poscache[ "tableau_"+i ] = {}
+		poscache[ "tableau_"+i ] = $("#tableau_"+i).position()	
+		poscache[ "tableau_"+i ].bottom = 10000
+		poscache[ "tableau_"+i ].right = poscache[ "tableau_"+i ].left + 110;
+		
+		if( i >= 4 ) continue;
+		poscache[ "foundation_"+suits[i] ] = $("#foundation_"+suits[i]).position();
+		poscache[ "foundation_"+suits[i] ].bottom = poscache[ "foundation_"+suits[i] ].top + 170
+		poscache[ "foundation_"+suits[i] ].right = poscache[ "foundation_"+suits[i] ].left + 110
+	}
+	
+
+	// build deck
+	for( var i = 0; i < cards.length; i++ )
+	{
+		deck[ deck.length ] = { suit: suits[0], value: cards[i] }
+		deck[ deck.length ] = { suit: suits[1], value: cards[i] }
+		deck[ deck.length ] = { suit: suits[2], value: cards[i] }
+		deck[ deck.length ] = { suit: suits[3], value: cards[i] }				
+	}
+	
+	// shuffle  deck
+	for(var j, x, i = deck.length; i; j = parseInt(Math.random() * i), x = deck[--i], deck[i] = deck[j], deck[j] = x);
+	
+	//deck.reverse()
+		
+	// place deck
+	slot = 1;
+	ms = 1;
+	oms = 1;
+	for( var i = 0; i <= 28; i++ )
+	{
+		oms = ms
+		
+		if( slot > 7 ) slot = ms;
+				
+		if( i == 25 ) ms = 7;		
+		if( i == 22 ) ms = 6
+		if( i == 18 ) ms = 5;
+		if( i == 13 ) ms = 4;
+		if( i == 7 ) ms = 3;
+		if( i == 0 ) ms = 2;
+		
+		ori = !( oms != ms || i == 28 )
+		
+		setTimeout( 'add_card( "tableau", '+(slot - 1)+', '+i+', '+ori+' )', (i * 70) )
+
+		slot++
+	}
+	
+	for( var i = 29; i < deck.length; i++ )
+	{
+		add_card( "reserve", 0, i, true )
+	}
+	
+	setTimeout( add_events, (i + 1) * 70 )
+})
+
+function add_events()
+{
+	$("#play_area .card").dblclick( function()
+	{
+		var i = $(this).parent().find(".card").index( this )
+		var slot = $("#tableau").find("ul").index( $(this).parents("ul")[0] )
+
+		if( $(this).attr("class").match(/flipped/) ) flip_card( this )
+		else card_to_foundation( slot, i, true )
+	})
+	
+	$("#reserve_0 .card").live( "click", function()
+	{
+		$("#reserve_1 li").prependTo( "#reserve_0 .cardlist" ).addClass("flipped")
+	
+		$( this ).prev().prev().appendTo( "#reserve_1" ).removeClass("flipped")
+		$( this ).prev().appendTo( "#reserve_1" ).removeClass("flipped")
+		$( this ).appendTo( "#reserve_1" ).removeClass("flipped")
+		
+	})
+	
+	$("#play_area .card").mousedown( function( e )
+	{
+		var pos = $(this).position();
+		var xoff = e.pageX - pos.left
+		var yoff = e.pageY - pos.top
+		highlight( this, xoff, yoff )
+	}).mouseup( function()
+	{
+		if( $(".hollow").length > 0 )
+		{
+			for( var i in moving )
+				$(moving[i]).appendTo( $(".hollow:first").parent() ).css("position","")		
+		}
+		else
+		{
+			var parent = $( moving[0] ).parent().position()
+			for( var i in moving )
+			{
+				var f = function()
+				{
+					$(moving[i]).css("position","")
+				}
+				var index = $( moving[i] ).parent().find(".card").index( moving[i] )
+				moving[i].animate( { left: parent.left, top: parent.top + 2 + (14 * index) + (25 * (index - moving.length)) }, 150, f ).css("position","")
+			}
+		}
+
+		$("#foundation .card").unbind()
+		$( ".highlight" ).removeClass( "highlight" );
+		$( ".hollow" ).remove()
+		moving = []
+	})
+	
+	$( document ).mouseup( function()
+	{
+		$( ".highlight" ).removeClass( "highlight" );
+		$( ".hollow" ).remove()
+		$("#foundation .card").unbind()		
+		target = false
+		//$(".card").css("position","")
+
+		moving = []
+	}).mousemove( function( e )
+	{
+		// get position
+		var pos = { left: e.pageX, top: e.pageY }
+		
+		// set pos of all movings
+		if( moving.length > 0 )
+		{
+			for( var i = 0; i < moving.length; i++ )
+			{
+				var o = moving[0].data( "offset" );
+				moving[i].css( { position: "absolute", left: pos.left - o.x , top: pos.top - o.y + (i*(42 - moving.length)) } )
+			}
+						
+			// trigger beneaths.
+			var ben = beneath( pos )
+			//if( ben == undefined || ben.length == 0 ) ben = "#play_area";
+			
+			
+			$(ben).mouseover()
+		}
+	})
+	
+	$( "#tableau, #reserve, #foundation" ).find("li > ul" ).mouseover( function()
+	{	
+		$(".hollow").remove()
+	
+		var target = this;
+		
+		// foundation highlight, if the card can go there and it is of the right suit
+		if( moving.length == 1 && $(this).parent().parent().attr("id") == "foundation" && index_value( moving[0] ) == $(this).children(".card:not(.hollow)").length && "foundation_"+moving[0].data( "card" ).suit == $(this).parent().attr("id") )
+			$( "<li class='card hollow'>&nbsp;</li>").appendTo( this )			
+		
+		//if( moving.length == 1 && $(this).parent().parent().attr("id") == "foundation" && index_value( moving[0] ) == $(this).children(".card:not(.hollow)").length)
+			//alert("foundation_"+moving[0].data( "card" ).suit +" "+$(this).parent().attr("id") )&& index_value( moving[0] ) == $(this).children().length 
+		
+		// tableau highlight, if its not the tableau where the moving item currently resides
+		if( moving.length > 0 && (($(this).children().length > 0 && $(this).parent().parent().attr("id") == "tableau" && moving[0].parents("ul").parent().attr("id") != $(this).parent().attr("id") && $(this).find(".hollow").length < moving.length) || (moving[0].parents("ul").parent().attr("id") == $(this).parent().attr("id")) ))
+			if( index_value( moving[0] ) == index_value( $(this).children(".card:last") ) - 1 || moving[0].parents("ul").parent().attr("id") == $(this).parent().attr("id"))
+			{
+				var mcard = $(moving[0]).data("card")
+				var tcard = $(this).children(".card:last").data("card")
+				
+				for( var i in suits )
+				{
+					if( suits[i] == mcard.suit ) mcard = i
+					if( suits[i] == tcard.suit ) tcard = i
+					
+				}
+				
+				if( (mcard < 2 && tcard >= 2) || (mcard >= 2 && tcard < 2) || moving[0].parents("ul").parent().attr("id") == $(this).parent().attr("id") )
+					for( var i = 0; i < moving.length; i++ ) $( "<li class='card hollow'>&nbsp;</li>").appendTo( this )
+			}
+			
+		if( moving.length > 0 && $(this).children().length == 0 && $(this).parent().parent().attr("id") == "tableau" && $(moving[0]).data("card").value == "K" )
+			for( var i = 0; i < moving.length; i++ ) $( "<li class='card hollow'>&nbsp;</li>").appendTo( this )
+	
+	
+		if( moving.length > 0 && $(this).children().length == 0 && $(this).parent().parent().attr("id") == "tableau" )
+			console.log( $(moving[0]).data("card") )
+	})
+	
+	$("#play_area").mouseover( function() {
+		$("#foundation .card").unbind()
+		//$( ".hollow").remove()
+		target = false;
+	})
+	
+}
+
+function beneath( pos )
+{
+	var ret = "#play_area";
+	for( var i in poscache )
+	{
+		obj = poscache[i]
+		if( obj.top < pos.top && obj.bottom > pos.top && obj.left < pos.left && obj.right > pos.left )
+		{
+			ret = "#" + i + " .cardlist"
+		}
+	}
+	return ret
+}
+
+function highlight( card, xo, yo )
+{
+	var slot = $( card ).parent();
+	var card = $( card )
+	var cards = slot.children();
+	var index = $(cards).index(card);
+	
+	card.addClass( "highlight" ).data( "offset", { x: xo, y: yo } )
+	
+	moving[ moving.length ] = card
+	
+	if( index + 1 < cards.length && card.next().length == 1)
+	{
+		// its not the top card, check if the card above is highlightable
+		var bro = card.next(".card");
+
+		if( ( index_value(bro) + 1 == index_value( card ) ) )
+		{
+			highlight( bro )
+		}
+		else
+		{
+			card.mouseup()
+		}
+	}
+	
+	return;
+}
+
+function index_value( card )
+{
+	var cards = [ "A", 2, 3, 4, 5, 6, 7, 8, 9, 10, "J", "Q", "K" ]
+	var card_data = card.data("card");
+	for( var j = 0; j <= cards.length; j++ ) if( cards[j] == card_data.value ) break;
+	// not found?
+	if( j == cards.length ) return -1;
+	return j;
+}
+
+function add_card( location, slot, i, ori )
+{
+	card = deck[i]
+	$( "<li class='card c"+card.suit+" c"+card.value+" "+(ori ? 'flipped':'')+"'>&"+card.suit+";"+card.value+"</li>" )
+		.attr( "suit", card.suit )
+		.attr( "value", card.value )
+		.data( "card", card )
+		.css( "position", "relative" )
+		.css( "top", "-1000px" )
+		.css( "left", (300 - (slot*100)) +"px")
+		.appendTo( "#"+location+"_"+slot+" .cardlist" )
+		.animate( { top: "0px", left: "0px" }, 300, function() { $(this).css("position","") } )
+}
+
+function flip_card( card )
+{
+	$( card ).animate( { width: "0px", marginLeft: "50px" }, 100, function()
+	{
+		$(card).removeClass("flipped").animate( { width: "100px", marginLeft: "-2px" }, 100 )
+	})
+
+}
+
+function card_to_foundation( slot, i, animate )
+{
+	// find slot
+		var slot = $("#tableau_"+slot+" .cardlist")
+
+	// find card	
+		var card = slot.find(".card:eq("+i+")")
+		var card_data = card.data( "card" )
+	
+	// find index of card
+		var cards = [ "A", 2, 3, 4, 5, 6, 7, 8, 9, 10, "J", "Q", "K" ]	
+		for( var j = 0; j <= cards.length; j++ ) if( cards[j] == card_data.value ) break;
+		// not found?
+		if( j == cards.length ) alert( "Error (card_to_foundation): index not found" );	
+	
+	// is it the card on top?
+		if( slot.children().length -1 != i ) return;
+		
+	// is the foundation able to recieve this card?
+		var foundation = $("#foundation_"+card_data.suit)
+		var cardlist = foundation.children(".cardlist")
+		var cards = cardlist.children(".card")
+		
+	// if j == cards.length, it is - as j is eqaul to the index of cards[], which is one less than its position in the suit
+	if( j != cards.length ) return;
+	
+	// move the card
+	// animated
+		if( animate == true )
+		{
+			var cardpos = card.position()
+			var reservepos = cardlist.position()
+	
+			var f = function()
+			{
+				card.appendTo( cardlist ).css( "position","")		
+			}
+	
+			card.css( { position: "absolute", top: cardpos.top, left: cardpos.left } )
+				.animate( {top: reservepos.top, left: reservepos.left }, 200, f )
+		}
+	// drag+drop
+		else
+		{
+			card.appendTo( cardlist )
+		}
+	
+	return;
+}
+
+</script>
+<style type="text/css">
+
+*
+{
+	font-family: Calibri;
+	font-weight: normal;
+}
+
+body { background: url( background.jpg ); }
+
+h1
+{
+	position: absolute;
+	top: 0px;
+	left: 50%;
+
+	margin: 0px;
+	margin-left: -500px;
+	
+	font-family: Calibri, TrebuchetMS;
+	font-size: 36pt;
+	font-weight: bold;
+
+	color: #fff;
+
+	opacity: 0.3;
+}
+
+h1 b
+{
+	font-weight: bold;
+
+	position: absolute;
+	top: 1px;
+	left: 0px;
+	color: #000;
+
+}
+
+
+#play_area
+{
+	
+	width: 900px;
+	height: 768px;
+	
+	margin: 50px auto 0px;
+	
+	border: 6px solid rgba(0,0,0,0.4);
+	-moz-border-radius: 10px;
+}
+
+#reserve
+{
+	display: block;
+	float: left;
+}
+
+#foundation
+{
+	display: block;
+	float: right;
+}
+
+#tableau
+{
+	display: block;
+	clear: right;
+	width: 870px;
+	margin: auto !important;
+}
+
+#play_area > ul
+{
+	overflow: visible;
+	margin: 5px;
+	padding: 0px;
+}
+
+#play_area > ul > li
+{
+	display: block;
+	float: left;
+	
+	width: 100px;
+	height: 155px;
+	
+	padding: 0px;
+	margin: 10px;
+	
+	border: 2px solid rgba( 0,0,0,0.2 );
+	-moz-border-radius: 5px;
+	
+	background: rgba(0,0,0,0.1);
+
+}
+
+#foundation_hearts
+{
+	background: rgba(0,0,0,0.1) url(hearts.png) no-repeat 50% 50% !important;
+}
+#foundation_diams
+{
+	background: rgba(0,0,0,0.1) url(diams.png) no-repeat 50% 50% !important;
+}
+#foundation_spades
+{
+	background: rgba(0,0,0,0.1) url(spades.png) no-repeat 50% 50% !important;
+}
+#foundation_clubs
+{
+	background: rgba(0,0,0,0.1) url(clubs.png) no-repeat 50% 50% !important;
+}
+
+.cardlist
+{
+	margin: 0px;
+	padding: 0px;
+	width: 100px;
+	min-height: 155px;
+
+	overflow: visible;
+}
+
+.card
+{
+	display: block;
+	width: 100px;
+	height: 155px;
+	
+	padding: 0px;
+	margin: -2px 0px -120px -2px;
+	
+	background:  no-repeat -8px -10px;
+	background-image: url(deck.jpg);
+	
+	border: 2px solid #444;
+	-moz-border-radius: 5px;
+	
+	text-indent: -9999px;
+}
+
+.card.flipped
+{
+	background-position: -8px -11px !important;
+	margin-bottom: -145px;
+}
+
+#foundation .card, #reserve .card { margin-top: -2px; }
+#foundation .card + .card, #reserve .card + .card
+{
+	margin-top: -159px; /* foundation cards don't show the one above them! */
+}
+
+#reserve_1 .card
+{
+	margin-top: -159px;
+}
+
+#reserve_1 .card + .card
+{
+	margin-left: 20px;
+}
+
+#reserve_1 .card + .card + .card
+{
+	margin-left: 40px;
+}
+
+.card.highlight
+{
+	cursor: pointer;
+	border: 5px solid rgba(64,64,64,0.5);
+	
+	margin: -5px 0px -120px -5px;
+}
+.card.highlight + .highlight
+{
+	border-top: 2px solid #444;
+}
+
+
+.card.hollow
+{
+	border-color: rgba(20,50,100,0.5);
+	background: rgba(50,100,150,0.5);
+}
+
+.cspades.cA { background-position: -226px -10px; }
+.cspades.c2 { background-position: -335px -10px; }
+.cspades.c3 { background-position: -443px -10px; }
+.cspades.c4 { background-position: -552px -10px; }
+.cspades.c5 { background-position: -660px -10px; }
+.cspades.c6 { background-position: -769px -10px; }
+.cspades.c7 { background-position: -877px -10px; }
+.cspades.c8 { background-position: -986px -10px; }
+.cspades.c9 { background-position: -1095px -10px; }
+
+.cspades.c10 { background-position: -8px -181px; }
+.cspades.cJ { background-position: -115px -181px; }
+.cspades.cQ { background-position: -224px -181px; }
+.cspades.cK { background-position: -332px -181px; }
+.chearts.cA { background-position: -442px -181px; }
+.chearts.c2 { background-position: -552px -181px; }
+.chearts.c3 { background-position: -660px -181px; }
+.chearts.c4 { background-position: -769px -181px; }
+.chearts.c5 { background-position: -877px -181px; }
+.chearts.c6 { background-position: -986px -181px; }
+.chearts.c7 { background-position: -1095px -181px; }
+
+.chearts.c8 { background-position: -8px -352px; }
+.chearts.c9 { background-position: -116px -352px; }
+.chearts.c10 { background-position: -225px -352px; }
+.chearts.cJ { background-position: -332px -352px; }
+.chearts.cQ { background-position: -440px -352px; }
+.chearts.cK { background-position: -550px -352px; }
+.cclubs.cA { background-position: -660px -352px; }
+.cclubs.c2 { background-position: -769px -352px; }
+.cclubs.c3 { background-position: -877px -352px; }
+.cclubs.c4 { background-position: -986px -352px; }
+.cclubs.c5 { background-position: -1095px -352px; }
+
+.cclubs.c6 { background-position: -8px -523px; }
+.cclubs.c7 { background-position: -116px -523px; }
+.cclubs.c8 { background-position: -225px -523px; }
+.cclubs.c9 { background-position: -332px -523px; }
+.cclubs.c10 { background-position: -440px -523px; }
+.cclubs.cJ { background-position: -549px -523px; }
+.cclubs.cQ { background-position: -660px -523px; }
+.cclubs.cK { background-position: -767px -523px; }
+.cdiams.cA { background-position: -877px -523px; }
+.cdiams.c2 { background-position: -986px -523px; }
+.cdiams.c3 { background-position: -1095px -523px; }
+
+.cdiams.c4 { background-position: -8px -694px; }
+.cdiams.c5 { background-position: -116px -694px; }
+.cdiams.c6 { background-position: -225px -694px; }
+.cdiams.c7 { background-position: -332px -694px; }
+.cdiams.c8 { background-position: -440px -694px; }
+.cdiams.c9 { background-position: -550px -694px; }
+.cdiams.c10 { background-position: -660px -694px; }
+.cdiams.cJ { background-position: -769px -694px; }
+.cdiams.cQ { background-position: -877px -694px; }
+.cdiams.cK { background-position: -986px -694px; }
+
+
+#decks
+{
+	position: absolute;
+	top: 40px;
+	left: 50%;
+	
+	margin-left: 140px;
+
+	opacity: 0.5;
+	
+	width: 360px;
+	height: 0px;
+	
+	background: transparent;
+	-moz-border-radius: 5px 0px 5px 5px;
+}
+
+#decks:hover
+{
+	opacity: 1;
+	background: rgba(0,0,0,0.5);
+	height: 175px;
+	padding: 0px;
+}
+
+#decks b
+{
+	display: block;
+	position: relative;
+	top: -25px;
+	left: 260px;
+	font-size: 14pt;
+	font-weight: bold;
+	width: 100px;
+	text-align: center;
+	line-height: 25px;
+	-moz-border-radius: 5px 5px 0px 0px;
+}
+
+#decks:hover b
+{
+	background: rgba(0,0,0,0.5);
+	color: #aaa;
+	cursor: default;
+}
+
+#decks div
+{
+	display: none;
+}
+
+#decks:hover div
+{
+	display: block;
+	width: 100px;
+	height: 155px;
+	border: 5px solid #666;
+	-moz-border-radius: 5px;
+	float: left;
+	cursor: pointer;
+	margin: -20px 5px;
+	background-position: -226px -10px;
+}
+
+#decks:hover div.active
+{
+	border: 5px solid #fc6;
+}
+
+#decks .deck
+{
+	background-image: url(deck.jpg);
+}
+#decks .deck2
+{
+	background-image: url(deck2.jpg);
+}
+#decks .deck3
+{
+	background-image: url(deck3.jpg);
+}
+
+</style>
+</head>
+<body>
+
+<h1>Solitaire<b>Solitaire</b></h1>
+
+<div id="decks">
+	<b>Deck</b>
+	<div class="deck active"></div>
+	<div class="deck2"></div>
+	<div class="deck3"></div>
+</div>
+
+<div id="play_area">
+	<ul id="reserve"></ul>
+	
+	<ul id="foundation"></ul>
+	
+	<ul id="tableau"></ul>
+</div>
+
+</body>
+</html>

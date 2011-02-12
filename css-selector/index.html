@@ -1,0 +1,577 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-GB" lang="en-GB">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>--</title>
+
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.2.6/jquery.min.js"></script>
+<script type="text/javascript" src="jquery.dimensions.pack.js"></script>
+<script type="text/javascript">
+var tooltip_time;
+var we = { pageX: 0, pageY: 0 };
+var opos = { x: 0, y: 0 }
+$( function()
+{
+	var implode = function( sep, str )
+	{
+		var out = "";
+		for( var i in str )
+		{
+			out += str[i] + sep;
+		}
+		return out.substring( 0, out.length -1 );
+	}
+	
+	var iframe_go = function()
+	{
+		$("#matches, #links, #children").val("0");
+		$("#childlist").hide().empty();
+		$("#selector").val("")
+		clear_overlays();
+		clear_tooltip();
+		$(".highlighted-hover").removeClass("highlighted-hover");
+	
+		var url = $("#url").val();
+		var clean_url = implode("/",url.split( "/", (url.split("/").length - 1) ))+"/";
+		$.get( "load.php", { url: url }, function( data )
+		{
+			$("#iframe").html(data)	
+			$( "#iframe" ).find( "script, meta, title" ).remove()
+			$( "#iframe head").find( "link, style" ).appendTo( "body");
+			$( "#iframe head").find( "link, style" ).remove()
+			//$( "#iframe").html( $("#iframe body") )
+			$( "#iframe" ).find( "img, link, a" ).each( function()
+			{
+				var src = $(this).attr("src");
+				var href = $(this).attr("href");
+				if( ( typeof( src ) != "undefined" && src.substring(0,4) != "http" ) || ( typeof( href ) != "undefined" && href.substring(0,4) != "http" ) )
+				{
+					$(this).attr("src", clean_url + src);
+					$(this).attr("href", clean_url + href);
+				}
+			})
+			var ncss = {}
+			ncss.width = "1024px !important";
+			ncss.margin = "0px !important";
+			ncss.textAlign = "left !important";			
+			
+			//$("#iframe").children("form,div,table,ul,span").css(ncss).width( 1024 );
+			$( "#iframe *" ).mousedown( clear_overlays )
+					.click( iframe_click )
+					.mouseover( iframe_hover )
+					.mouseout( iframe_hoverOut )
+			$("#iframe a").attr("title","");
+			$("#iframe img").attr("alt","").attr("title","")
+		})
+		return false
+	}
+	
+	var tooltip = function( text, x, y )
+	{
+		if( x == undefined || x == null || x == false )
+		{
+			x = we.pageX
+		}
+		if( y == undefined || y == null || y == false )
+		{
+			y = we.pageY
+		}		
+		
+		$(".tooltip").css( "top", y ).css( "left", x ).html(text).fadeIn( "fast" ).click( function( e )
+		{				
+			var pos = { x: e.pageX, y: e.pageY };
+			var obj = get_element_at_pos( $("#iframe").children(), pos );
+			$(obj).click();
+		});
+	}
+	
+	var clear_tooltip = function() 
+	{ 
+		clearTimeout( tooltip_time )
+		$(".tooltip").fadeOut("fast") 
+	}
+	
+	var iframe_hover = function( e )
+	{
+		if (!e) var e = window.event;
+		e.cancelBubble = true;
+		if (e.stopPropagation) e.stopPropagation();
+
+		var sel = get_selector( $(this), true );
+		var mx = e.pageX;
+		var my = e.pageY;
+				
+		if( this.tagName == "A" )
+		{
+			href = $(this).attr("href");
+			if( href.length > 50 ) href = href.substring(0,50)+"..."
+			sel += "<br>"+href
+		}
+		
+		var f = function()
+		{
+			tooltip( sel );
+		}
+		
+		clearTimeout( tooltip_time );
+		tooltip_time = setTimeout( f, 100 );
+
+		$(this).addClass("highlighted-hover")
+	}
+	
+	var iframe_hoverOut = function()
+	{
+		clear_tooltip()
+		$(this).removeClass("highlighted-hover");
+	}
+
+	
+	var iframe_click = function( sel )
+	{
+		if( typeof( sel ) != "string" )
+		{
+			var selector = get_selector( $(this), true );
+		}
+		else
+		{
+			var selector = sel;
+		}
+
+		//console.log( sel )
+
+		clear_overlays();
+
+		$(selector).each( draw_overlay );
+				
+		$("#selector").val( selector );
+		$("#matches").val( count_elements( selector ) );
+		$("#links").val( count_links( selector ) );
+		$("#children").val( count_children(selector) );
+		fill_childlist( selector )
+		return false;
+	}
+	
+	var clear_overlays = function() { $(".overlay").remove() }
+	
+	var draw_overlay = function()
+	{
+		var obj = this;
+		var bound = this.getBoundingClientRect();
+		var ow   = $(this).width();
+		var oh   = $(this).height();
+						
+		var css = {}
+		css.top = bound.top - 5 + window.pageYOffset;
+		css.left = bound.left - 5;
+		css.right = bound.right + 5;
+		css.bottom = bound.bottom + 5 + window.pageYOffset;
+		css.width = ow + 10;
+		css.height = oh + 10;
+		
+		uid = Math.random();
+		
+		o = $("<div>&nbsp;</div>").addClass("overlay").css( css ).appendTo( "body" );
+
+		o.click( function( e )
+		{
+			clear_overlays();
+					
+			var pos = { x: e.pageX, y: e.pageY };
+			
+			var obj = get_element_at_pos( $("#iframe").children(), pos );
+			
+			$(obj).click();
+		});
+		
+		o.mousemove( function( e )
+		{
+			pos = { x: e.pageX, y: e.pageY };
+			
+			if( opos.x - pos.x > 10 || opos.x - pos.x < -10 )
+			{
+				if( opos.y - pos.y > 10 || opos.y - pos.y < -10 )
+				{		
+					opos = pos;
+					var obj = get_element_at_pos( $("#iframe").children(), pos );
+					$(obj).mouseover();
+				}
+			}
+		});
+		
+		/*o.attr("uid",uid)
+			.mouseover( function()
+			{
+				$(this).stop(true,true).fadeOut("fast");
+			})
+			
+		$(this).attr("uid",uid).mouseout( function()
+		{
+			$(".overlay[uid="+$(this).attr("uid")+"]").fadeIn("fast")
+		})*/
+	}
+	
+	var get_element_at_pos = function( objects, pos )
+	{
+		for( var i = 0; i < objects.length; i++ )
+		{
+			var object = objects[i];
+			var bound = object.getBoundingClientRect();
+			
+			if( 	bound.top < pos.y && bound.bottom > pos.y && bound.left < pos.x && bound.right > pos.x )
+			{
+				var oc = $(object).children();
+				if( oc.length > 0 )
+					return get_element_at_pos( oc, pos );
+				return object;
+			}
+		}
+	}
+	
+	var fill_childlist = function( selector )
+	{
+		$("#childlist").empty();
+		
+		var children = $(selector).children();
+		
+		if( children.length == 0 )
+		{
+			$("#childlist").fadeOut("fast");
+			return;
+		}
+		
+		$("#childlist").fadeIn("fast")
+		
+		var tags = {};
+	
+		$.each( children, function( i, child )
+		{
+			tagname = child.tagName.toLowerCase();	
+			if( tags[tagname] == undefined )
+			{
+				tags[tagname] = 1;				
+			}
+			else
+			{
+				tags[tagname]++;
+			}
+		})
+
+		$.each( tags, function( tag, count )
+		{
+			$("<li></li>").attr("tag",tag).html( tag + " ("+count+")" ).appendTo( "#childlist" )
+		})
+		$("#childlist > li").click( function()
+		{
+			$("#selector").val( $("#selector").val() + " > " + $(this).attr("tag") ).keyup()		
+		})
+	}
+	
+	var count_links = function( selector )
+	{
+		return $( selector ).parent().children("a").length;
+	}
+	
+	var count_elements = function( selector )
+	{
+		return $( selector ).length;
+	}
+	
+	var count_children = function( selector )
+	{
+		return $(selector).children().length;
+	}
+	
+	var get_selector = function( obj, multi )
+	{
+		var tag_name = obj[0].tagName.toLowerCase();
+		var class_name = obj.attr("class");
+		    class_name = class_name.replace( /highlighted(-hover)?/, "" );		
+		    class_name = (( class_name.length == 0 ) ? "" : "."+class_name );
+		var id = obj.attr("id")
+		    id = ( id == "" ? "" : "#"+id )
+		
+		var selector = tag_name + id + class_name;
+		
+		if( selector == tag_name && multi == true )
+			return get_selector( obj.parent(), true );
+		
+		return tag_name + class_name + id
+	
+	}
+	
+	$("#url").click( function( e )
+	{
+		if( e.clientX > 390 )
+		{
+			$("#url_bar form").submit()
+			$(this).blur();
+		}
+	}).mouseover( function()
+	{
+		tooltip( "URL<br>The URL of the currently viewed page.", false, 40 );	
+	}).mouseout( clear_tooltip )
+	
+	$("#url_bar form").submit( iframe_go );
+	$("#selector").keyup( function()
+	{
+		iframe_click( $(this).val() )
+	}).mouseover( function()
+	{
+		tooltip( "CSS Selector<br>This selector represents the 'map' to the current set of elements. It follows standard CSS2.1 rules and syntax.", false, 40 );	
+	}).mouseout( clear_tooltip )
+	
+	$("#links").click( function()
+	{
+		$("#selector").val( $("#selector").val() + " a" );
+		$("#selector").keyup();
+		$(this).blur()
+	}).mouseover( function()
+	{
+		tooltip( "Links<br>Number of links that match this selector<br>If it is zero, try appending ' a' to the selector<br>(or click on the icon)", false, 40 );	
+	}).mouseout( clear_tooltip )
+
+	$("#matches").mouseover( function()
+	{
+		tooltip( "Matches<br>Number of elements that match this selector<br>If you are trying to get something like a conference title, this should be 1.", false, 40 );
+	}).mouseout( clear_tooltip )
+	
+	$("#children").mouseover( function()
+	{
+		tooltip( "Children<br>Number of children of this selector.", false, 40 );
+	}).mouseout( clear_tooltip )
+	.click( function()
+	{
+		if( $("#childlist").css("display") == "none" && $("#children").val() != "0" )
+		{
+			$("#childlist").fadeIn("fast");
+		}
+		else
+		{
+			$("#childlist").fadeOut("fast");
+		}
+		$(this).blur()
+	})
+	
+	$("#parent").mouseover( function()
+	{
+		tooltip( "Up one level<br>Click to go to the parent of the current selector (the opposite of clicking a child)", false, 40 );
+	}).mouseout( clear_tooltip )
+	.click( function()
+	{
+		var sel = $("#selector").val();
+		var parent_sel = implode(">",sel.split( ">", (sel.split(">").length - 1) ));
+		
+		if( parent_sel == sel || parent_sel == '' )
+		{
+			parent_sel = get_selector( $(sel).parent() )
+		}
+		
+		$("#selector").val( parent_sel ).keyup()
+	})
+	
+	$(document).mousemove( function(e)
+	{
+		we = e
+	})
+	$("#matches, #links, #children").val("0");
+	$("#childlist").hide().empty();
+	$("#selector, #url").val("")
+	clear_overlays();
+	clear_tooltip();
+	$(".highlighted-hover").removeClass("highlighted-hover");	
+	$("#childlist").css("left", 780 ).hide();
+})
+</script>
+<style type="text/css">
+
+body
+{
+	margin-top: 30px !important;
+	width: 102px;
+}
+
+*
+{
+	font-family: Arial;
+	font-weight: normal;
+}
+
+#url_bar
+{
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	right: 0px;
+	background: #222;
+	border-bottom: 1px solid #ace;
+	padding: 3px !important;
+	z-index: 999;
+	height: 34px;
+}
+
+#url_bar > *
+{
+	margin-top: 0px !important;
+}
+
+#url
+{
+	width: 400px;
+	border: 1px solid #ace;
+	margin: 5px;
+	margin-right: 0px;
+	padding: 3px;
+	font-family: Arial;
+	font-size: 10pt;
+	background: url(arrow.png) #fff 99% 50% no-repeat;
+}
+
+#selector
+{
+	width: 200px;
+	border: 1px solid #ace;
+	margin: 5px;
+	padding: 3px;
+	font-family: Arial;
+	font-size: 10pt;
+	background: #fff url(color.png) 5px 50% no-repeat;
+	padding-left: 26px;
+}
+
+#links, #matches, #children
+{
+	width: 15px;
+	border: 0px;
+	padding: 3px;
+	margin: 5px;
+	font-family: Arial;
+	font-size: 8pt;
+	text-align: right;
+	color: #fff;
+	background: 5px 50% no-repeat;
+	padding-left: 26px;
+	cursor: pointer;
+}
+
+#links
+{
+	background-image: url(chain.png);
+}
+
+#matches
+{
+	background-image: url(gear.png);
+	cursor: default;
+}
+
+#children
+{
+	background-image: url(children.png);
+}
+
+#childlist
+{
+	position: absolute;
+	top: 35px;
+	background: #222;
+	opacity: 0.8;
+	z-index: 999;
+	padding: 5px;
+	margin: 5px;
+	width: 100px;
+	list-style: none;
+}
+
+#childlist li
+{
+	display: block;
+	padding: 5px 5px 5px 26px;
+	background: url(arrow_000_small.png) 5px 50% no-repeat;
+	color: #fff;
+	font-size: 11px;
+}
+
+#childlist li:hover
+{
+	cursor: pointer;
+	background-color: #444;
+}
+
+#parent
+{
+	margin: 0px 0px -3px 5px;
+	cursor: pointer;
+}
+
+#go
+{
+	display: none;
+}
+
+#iframe
+{
+	display: block;
+	position: absolute;
+	top: 30px;
+	bottom: 0px;
+	left: 0px;
+	right: 0px;
+	width: 1024px;
+}
+
+.tooltip
+{
+	display: none;
+	opacity: 0.9;
+	background: #222;
+	padding: 5px 10px;
+	font-size: 11px;
+	color: #fff;
+	margin: 5px;
+	position: absolute;
+	z-index: 999;
+	max-width: 300px;
+}
+
+.tooltip:first-line
+{
+	font-weight: bold;
+}
+
+.overlay
+{
+	position: absolute;
+	z-index: 997;
+	background: #ace;
+	opacity: 0.5;
+}
+
+.highlighted-hover
+{
+	opacity: 0.9;
+}
+
+</style>
+</head>
+<body>
+
+<div class="tooltip">html > body > div > a</div>
+
+<div id="url_bar">
+<form>
+	<input type="text" id="url" value="" />
+	<input type="image" id="go" src="arrow.png" />
+	<input type="text" id="selector" value="" />
+	<input type="text" id="links" value="0" />
+	<input type="text" id="matches" value="0" />
+	<input type="text" id="children" value="0"/>
+	<img id="parent" src="arrow_stop_090.png" />
+	<ul id="childlist"></ul>
+</form>
+</div>
+
+<div id="iframe"></div>
+
+</body>
+</html>
