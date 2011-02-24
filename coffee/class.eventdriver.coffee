@@ -28,11 +28,3 @@ class EventDriver
 
 	bound: (event) ->
 		return @events[event]?
-
-
-
-a = new EventDriver()
-b = (x,y) -> console.log(this,x,y)
-
-a.bind( 'yoyo', b )
-a.trigger( 'yoyo', 3.1412, 42 )
