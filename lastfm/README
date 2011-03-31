@@ -1,1 +1,22 @@
 A tiny Last.FM PHP API implementation (read only methods), requires PHP5
+
+Some explanation from a conversation related to getting festival information:
+
+All the available API calls are listed in lines 48..150 - line 48 translates to:
+
+$lastfm = new lastfm( $your_api_key );
+$links = $lastfm->album->getBuyLinks("The Beatles", "Please Please Me");
+
+This returns some object (see http://www.last.fm/api/show?service=429 for a hint) which is purely stdClass types (not an XML structure)
+
+With regards to festivals, they are listed under the "events" namespace which has no search method - this means that finding the event ID is difficult.
+
+There are various ways you could go about it:
+ - have the user input the ID manually (not a great idea)
+ - have the user input the Last.FM event URL (and then regex for the ID)
+ - search a location using the $lastfm->geo->getEvents("san jose")
+ - search a long/lat using $lasfm->geo->getEvents(null,"37.33.9592","-121.89537"); - get users to click a map using the Google Maps API for bonus points
+ - if you know one (or more) of the artists, use $lastfm->artist->getEvents("At The Drive In"); and then look in the returned events for the one you want.
+
+All of these will hopefully get you the event ID, and you can then use
+$lastfm->events->getInfo(1891074);
